@@ -1,7 +1,13 @@
 package main
 
+import (
+	"coin-app/internal/config"
+)
+
 func main() {
-	// TODO: Init config: cleanenv
+	// Init config: cleanenv
+	cfg := config.MustLoad()
+	_ = cfg
 
 	// TODO: Init logger: slog
 
