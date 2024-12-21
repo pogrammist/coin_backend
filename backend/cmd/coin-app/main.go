@@ -3,6 +3,8 @@ package main
 import (
 	"coin-app/internal/config"
 	"coin-app/internal/lib/logger/handlers/slogpretty"
+	"coin-app/internal/lib/logger/sl"
+	"coin-app/internal/storage/postgresql"
 	"log/slog"
 	"os"
 )
@@ -22,7 +24,14 @@ func main() {
 	log.Info("starting driver server", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	// TODO: Init storage: postgresql
+	// Init storage: postgresql
+	storage, err := postgresql.New()
+	if err != nil {
+		log.Error("failed to init storage", sl.Err(err))
+		os.Exit(1)
+	}
+
+	_ = storage
 
 	// TODO: Init router: chi, "chi render"
 
