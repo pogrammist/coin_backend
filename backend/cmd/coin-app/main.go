@@ -7,6 +7,11 @@ import (
 	"coin-app/internal/storage/postgresql"
 	"log/slog"
 	"os"
+
+	mwLogger "coin-app/internal/http-server/middleware/logger"
+
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 const (
@@ -33,7 +38,15 @@ func main() {
 
 	_ = storage
 
-	// TODO: Init router: chi, "chi render"
+	// Init router: chi, "chi render"
+	router := chi.NewRouter()
+
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Logger)
+	router.Use(mwLogger.New(log))
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.URLFormat)
 
 	// TODO: Run server
 }
