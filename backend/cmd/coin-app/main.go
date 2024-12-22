@@ -4,10 +4,18 @@ import (
 	"coin-app/internal/config"
 	"coin-app/internal/lib/logger/handlers/slogpretty"
 	"coin-app/internal/lib/logger/sl"
+	"coin-app/internal/services/wallet"
 	"coin-app/internal/storage/postgresql"
+	"context"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
+	"coin-app/internal/http-server/handlers/wallet/deposit"
+	"coin-app/internal/http-server/handlers/wallet/withdraw"
 	mwLogger "coin-app/internal/http-server/middleware/logger"
 
 	"github.com/go-chi/chi"
@@ -36,19 +44,69 @@ func main() {
 		os.Exit(1)
 	}
 
-	_ = storage
+	walletService := wallet.New(log, storage, storage)
 
 	// Init router: chi, "chi render"
-	router := chi.NewRouter()
+	router := setupRouter(log, walletService)
 
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
-	router.Use(mwLogger.New(log))
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.URLFormat)
+	// Init server
+	srv := &http.Server{
+		Addr:         cfg.Address,
+		Handler:      router,
+		ReadTimeout:  cfg.HTTPServer.Timeout,
+		WriteTimeout: cfg.HTTPServer.Timeout,
+		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
+	}
 
-	// TODO: Run server
+	// Run server
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("failed to start server", sl.Err(err))
+			os.Exit(1)
+		}
+	}()
+	log.Info("server started")
+
+	// Graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+
+	sign := <-stop
+	log.Info("stopping server", slog.String("signal", sign.String()))
+
+	// TODO: move timeout to config
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Error("failed to stop server", sl.Err(err))
+
+		return
+	}
+
+	// TODO: Добавить отдельную остановку для SQLite сервера
+
+	log.Info("server gracefully stopped")
+}
+
+func setupRouter(log *slog.Logger, walletService *wallet.Wallet) http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(mwLogger.New(log))
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.URLFormat)
+
+	r.Post("/signup", deposit.New(log, walletService))
+	r.Post("/signin", withdraw.New(log, walletService))
+
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("welcome anonymous"))
+	})
+
+	return r
 }
 
 func setupLogger(env string) *slog.Logger {
