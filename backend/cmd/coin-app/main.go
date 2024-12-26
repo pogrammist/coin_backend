@@ -3,6 +3,7 @@ package main
 import (
 	"coin-app/internal/config"
 	"coin-app/internal/http-server/handlers/wallet/create"
+	"coin-app/internal/http-server/handlers/wallet/transaction"
 	"coin-app/internal/http-server/handlers/wallet/wallet"
 	"coin-app/internal/lib/logger/handlers/slogpretty"
 	"coin-app/internal/lib/logger/sl"
@@ -100,7 +101,8 @@ func setupRouter(log *slog.Logger, walletService *walletService.Wallet) http.Han
 	r.Use(middleware.URLFormat)
 
 	r.Post("/wallet/create", create.New(log, walletService))
-	r.Post("/wallet", wallet.New(log, walletService))
+	r.Post("/wallet", transaction.New(log, walletService))
+	r.Get("/wallet/{walletId}", wallet.New(log, walletService))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("welcome anonymous"))

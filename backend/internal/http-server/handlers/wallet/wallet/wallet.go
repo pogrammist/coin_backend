@@ -3,102 +3,73 @@ package wallet
 import (
 	"coin-app/internal/lib/logger/sl"
 	"context"
-	"errors"
-	"io"
 	"net/http"
 
 	"log/slog"
 
+	"coin-app/internal/domain/models"
 	resp "coin-app/internal/lib/api/response"
-	"coin-app/internal/services/wallet"
 
+	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 )
 
-type Request struct {
-	WalletId      uuid.UUID `json:"walletId"`
-	OperationType string    `json:"operationType"`
-	Amount        int       `json:"amount"`
-}
+// type Request struct {
+// 	WalletId uuid.UUID `json:"walletId"`
+// }
 
 type Response struct {
 	resp.Response
-	TransactionId uuid.UUID `json:"transactionId"`
+	TransactionId uuid.UUID     `json:"transactionId"`
+	Wallet        models.Wallet `json:"wallet"`
 }
 
-// TODO(pogrammist): не используется
-type OperationType string
-
-const (
-	Deposit  OperationType = "DEPOSIT"
-	Withdraw OperationType = "WITHDRAW"
-)
-
-type TransactionSaver interface {
-	SaveTransaction(
+type WalletProvider interface {
+	GetWallet(
 		ctx context.Context,
 		walletId uuid.UUID,
-		operationType string,
-		amount int,
-	) (transactionId uuid.UUID, err error)
+	) (wallet models.Wallet, err error)
 }
 
-func New(log *slog.Logger, transactionSaver TransactionSaver) http.HandlerFunc {
+func New(log *slog.Logger, walletProvider WalletProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "handlers.wallet.wallet.New"
+
+		// Извлечение walletId из URL параметров
+		walletIdParam := chi.URLParam(r, "walletId")
+		walletId, err := uuid.Parse(walletIdParam) // Парсинг walletId из строки
+		if err != nil {
+			log.Error("invalid walletId", sl.Err(err))
+			render.JSON(w, r, resp.Error("invalid walletId"))
+			return
+		}
 
 		log := log.With(
 			slog.String("op", op),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
+		log.Info("walletId extracted", slog.String("walletId", walletId.String()))
 
-		err := render.DecodeJSON(r.Body, &req)
-		if errors.Is(err, io.EOF) {
-			log.Error("request body is empty")
-
-			render.JSON(w, r, resp.Error("empty request"))
-
-			return
-		}
+		// Получение кошелька
+		wallet, err := walletProvider.GetWallet(r.Context(), walletId)
 		if err != nil {
-			log.Error("failed to decode request body", sl.Err(err))
-
-			render.JSON(w, r, resp.Error("failed to decode request"))
-
+			log.Error("failed to get wallet", sl.Err(err))
+			render.JSON(w, r, resp.Error("failed to get wallet"))
 			return
 		}
 
-		log.Info("request body decoded", slog.Any("request", req))
+		log.Info("wallet retrieved", slog.Any("wallet", wallet))
 
-		transactionId, err := transactionSaver.SaveTransaction(r.Context(), req.WalletId, req.OperationType, req.Amount)
-		if errors.Is(err, wallet.ErrWalletNotExists) {
-			log.Warn("wallet not exists", slog.String("walletId", req.WalletId.String()))
-
-			render.JSON(w, r, resp.Error("wallet not exists"))
-
-			return
-		}
-		if err != nil {
-			log.Error("failed to save user", sl.Err(err))
-
-			render.JSON(w, r, resp.Error("failed to save transaction"))
-
-			return
-		}
-
-		log.Info("transaction added", slog.String("id", transactionId.String()))
-
-		responseOK(w, r, transactionId)
+		responseOK(w, r, wallet)
 	}
 }
 
-func responseOK(w http.ResponseWriter, r *http.Request, transactionId uuid.UUID) {
+func responseOK(w http.ResponseWriter, r *http.Request, wallet models.Wallet) {
 	render.JSON(w, r, Response{
-		Response:      resp.OK(),
-		TransactionId: transactionId,
+		Response: resp.OK(),
+		Wallet:   wallet,
 	})
 }

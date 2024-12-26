@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"coin-app/internal/domain/models"
 	"coin-app/internal/lib/logger/sl"
 	"coin-app/internal/storage"
 )
@@ -30,6 +31,10 @@ type WalletSaver interface {
 		walletId uuid.UUID,
 		amount int,
 	) error
+	GetWallet(
+		ctx context.Context,
+		walletId uuid.UUID,
+	) (wallet models.Wallet, err error)
 }
 
 type TransactionSaver interface {
@@ -132,4 +137,31 @@ func (w *Wallet) SaveTransaction(ctx context.Context, walletId uuid.UUID, operat
 
 	log.Info("transaction saved successfully")
 	return id, nil
+}
+
+// GetWallet retrieves a wallet by its ID.
+// If wallet with given uuid not exists, returns error.
+func (w *Wallet) GetWallet(ctx context.Context, walletId uuid.UUID) (models.Wallet, error) {
+	const op = "Wallet.GetWallet"
+
+	log := w.log.With(
+		slog.String("op", op),
+		slog.String("walletId", walletId.String()),
+	)
+
+	log.Info("retrieving wallet")
+
+	wallet, err := w.walletSaver.GetWallet(ctx, walletId)
+	if err != nil {
+		if errors.Is(err, storage.ErrWalletNotExists) {
+			log.Warn("wallet not exists", sl.Err(err))
+
+			return models.Wallet{}, fmt.Errorf("%s: %w", op, ErrWalletNotExists)
+		}
+		log.Error("failed to get wallet", sl.Err(err))
+		return models.Wallet{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	log.Info("wallet retrieved successfully")
+	return wallet, nil
 }
