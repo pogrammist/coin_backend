@@ -77,7 +77,7 @@ func (s *Storage) SaveTransaction(ctx context.Context, transactionId uuid.UUID, 
 }
 
 // UpdateWallet updates wallet to db.
-func (s *Storage) UpdateWallet(ctx context.Context, walletId uuid.UUID, amount int) error {
+func (s *Storage) UpdateBalance(ctx context.Context, walletId uuid.UUID, amount int) error {
 	const op = "storage.postgres.UpdateWallet"
 
 	stmt, err := s.db.Prepare("UPDATE wallets SET balance = balance + $1 WHERE id = $2")

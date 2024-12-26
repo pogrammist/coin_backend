@@ -28,6 +28,7 @@ type Response struct {
 	TransactionId uuid.UUID `json:"transactionId"`
 }
 
+// TODO(pogrammist): не используется
 type OperationType string
 
 const (

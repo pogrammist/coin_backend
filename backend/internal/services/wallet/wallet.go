@@ -25,6 +25,11 @@ type WalletSaver interface {
 		userId uuid.UUID,
 		balance int,
 	) (id uuid.UUID, err error)
+	UpdateBalance(
+		ctx context.Context,
+		walletId uuid.UUID,
+		amount int,
+	) error
 }
 
 type TransactionSaver interface {
@@ -96,7 +101,7 @@ func (w *Wallet) SaveTransaction(ctx context.Context, walletId uuid.UUID, operat
 		slog.String("op", op),
 		slog.String("transactionId", transactionId.String()),
 		slog.String("walletId", walletId.String()),
-		slog.String("operationType", operationType),
+		slog.String("operationType", string(operationType)),
 		slog.Int("amount", amount),
 	)
 
@@ -114,7 +119,17 @@ func (w *Wallet) SaveTransaction(ctx context.Context, walletId uuid.UUID, operat
 		return uuid.UUID{}, fmt.Errorf("%s: %w", op, err)
 	}
 
-	log.Info("transaction saved successfully")
+	if operationType == "DEPOSIT" {
+		err = w.walletSaver.UpdateBalance(ctx, walletId, amount)
+	} else if operationType == "WITHDRAW" {
+		err = w.walletSaver.UpdateBalance(ctx, walletId, -amount)
+	}
 
+	if err != nil {
+		log.Error("failed to update wallet balance", sl.Err(err))
+		return uuid.UUID{}, fmt.Errorf("%s: %w", op, err)
+	}
+
+	log.Info("transaction saved successfully")
 	return id, nil
 }
