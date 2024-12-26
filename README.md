@@ -61,3 +61,49 @@
 
    Эта команда запустит ваше приложение в контейнерах.
 
+## Примеры запросов
+
+### Создание кошелька
+
+```http
+POST /wallet/create
+Content-Type: application/json
+
+{
+   "userId": "ваш_UUID_пользователя",
+   "amount": 1000
+}
+```
+
+### Пополнение кошелька
+
+```http
+POST /wallet
+Content-Type: application/json
+
+{
+   "walletId": "ваш_UUID_кошелька",
+   "operationType": "DEPOSIT",
+   "amount": 500
+}
+```
+
+### Снятие средств с кошелька
+
+```http
+POST /wallet
+Content-Type: application/json
+
+{
+   "walletId": "ваш_UUID_кошелька",
+   "operationType": "WITHDRAW",
+   "amount": 200
+}
+```
+
+### Получение баланса кошелька
+
+```http
+GET /wallets/{walletId}
+```
+
