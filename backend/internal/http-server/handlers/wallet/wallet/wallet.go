@@ -47,7 +47,7 @@ type TransactionSaver interface {
 
 func New(log *slog.Logger, transactionSaver TransactionSaver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		const op = "handlers.wallet.deposit.New"
+		const op = "handlers.wallet.wallet.New"
 
 		log := log.With(
 			slog.String("op", op),
